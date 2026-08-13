@@ -2,10 +2,6 @@
 
 The purpose of this RAG application will be to provide general information on local Australian music artists such as their genre, their members, their releases, and fun facts. It will also provide a guide to help users easily find live music gigs that they could be interested in within Sydney.
 
-use the information available from the website `sydneymusic.net` to populate both a vector and a SQL database to help me easily find live music gigs that I would be interested in within Sydney.
-
-todo: maybe I do implement an agent routing architecture. One that provides information about bands and venues which is stored in vector databases, the other is specific time-based gig based info stored in SQL.
-
 ## Project scope
 
 **Problem statement**: For many smaller local Australian artists, it can be hard to find much information about them in the same space as bigger artists do (for example, not all of them are on Spotify). It can be convenient to have an application that has collected information for these smaller acts across a number of sources into a database so that a user may find out more about these artists through natural language interaction in a RAG application.
@@ -31,7 +27,7 @@ I am choosing React and TypeScript as the stack choice of my implementation. I w
 
 Additional considerations:
 
-- A possible additional feature is to hook up the app with Spotify API to have it anaylyse my music tastes recently and have it recommend local artists and Sydney gigs based on the genres and bands I listen to.
+- A possible additional feature is to hook up the app with Spotify API to have it analyse my music tastes recently and have it recommend local artists and Sydney gigs based on the genres and bands I listen to.
 - Music releases are highly structured data so info fetched from Bandcamp may be more suitable for being stored in a different table in MySQL.
 
 ## Chunking strategy
