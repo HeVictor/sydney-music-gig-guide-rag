@@ -235,7 +235,7 @@ export const knownSeriesOverrides: GigOverrideRule[] = [
   },
 ];
 
-export async function scrapeSydneyMusicNetGigGigGuidePage(): Promise<
+export async function scrapeSydneyMusicNetGigGuidePage(): Promise<
   Gig[] | null
 > {
   const url = "https://sydneymusic.net/gig-guide";
@@ -254,5 +254,3 @@ export async function scrapeSydneyMusicNetGigGigGuidePage(): Promise<
     return null;
   }
 }
-
-scrapeSydneyMusicNetGigGigGuidePage();
