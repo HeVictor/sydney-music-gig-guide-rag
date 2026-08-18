@@ -235,9 +235,12 @@ export const knownSeriesOverrides: GigOverrideRule[] = [
   },
 ];
 
-export async function scrapePage() {
+export async function scrapeSydneyMusicNetGigGigGuidePage(): Promise<
+  Gig[] | null
+> {
+  const url = "https://sydneymusic.net/gig-guide";
+
   try {
-    const url = "https://sydneymusic.net/gig-guide";
     const response = await axios.get(url, {
       headers: {
         "User-Agent":
@@ -245,12 +248,11 @@ export async function scrapePage() {
       },
     });
 
-    const gigs = parseGigs(response);
-
-    // console.log(gigs);
+    return parseGigs(response);
   } catch (error) {
-    // todo
+    console.error(`Error scraping ${url}:`, error);
+    return null;
   }
 }
 
-scrapePage();
+scrapeSydneyMusicNetGigGigGuidePage();
