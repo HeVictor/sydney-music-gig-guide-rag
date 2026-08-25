@@ -1,30 +1,7 @@
+import { Gig } from "@/app/types/gigTypes";
 import axios from "axios";
 import type { AxiosResponse } from "axios";
 import * as cheerio from "cheerio";
-
-export interface Gig {
-  id: string | null;
-  date: string; // e.g. "14 August 2026"
-  dayOfWeek: string; // e.g. "Friday"
-  time: string; // e.g. "6:00pm"
-  venue: string; // e.g. "Heaps Normal Health Club"
-  venueUrl: string | null;
-  /** Headliner name, e.g. "Joe Visser". Null when an override has determined
-   *  this gig has no single headliner - see eventTitle. */
-  mainAct: string | null;
-  /** Populated (via an override rule) when the gig is a themed night/show
-   *  rather than a single headline act - e.g. "Icon Series #2". When set,
-   *  mainAct is null and every performer lives in supportingActs/lineup with
-   *  no headliner distinction. Null for ordinary headliner+support gigs. */
-  eventTitle: string | null;
-  supportingActs: string[]; // e.g. ["Georgia Mulligan"]
-  /** All acts combined, in listed order: [mainAct, ...supportingActs] when
-   *  there's a headliner, or just supportingActs when eventTitle is set.
-   *  Use this when you don't want to rely on the headliner/support split. */
-  lineup: string[];
-  moreInfoUrl: string | null;
-  isFree: boolean;
-}
 
 /**
  * An override rule lets you manually correct gigs the heuristic gets wrong,
@@ -128,7 +105,17 @@ export function parseGigs(
     $dayContainer.find(".eventcardhost").each((_, cardEl) => {
       const $card = $(cardEl);
 
-      const id = $card.find("[data-gigid]").first().attr("data-gigid") ?? null;
+      const id = $card.find("[data-gigid]").first().attr("data-gigid");
+      if (!id) {
+        console.error(
+          `parseGigs: skipping a gig with no data-gigid (headliner: "${$card
+            .find(".headliner")
+            .first()
+            .text()
+            .trim()}", venue: "${$card.find(".venue").first().text().trim()}")`,
+        );
+        return; // skip this .eventcardhost, continue with the rest
+      }
 
       const mainActOrEventTitle = $card
         .find(".headliner")
