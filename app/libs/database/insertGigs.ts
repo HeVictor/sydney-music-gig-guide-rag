@@ -1,22 +1,5 @@
+import { Gig } from "@/app/types/gigTypes";
 import mysql from "mysql2/promise";
-
-export interface Gig {
-  /** From the source site. Sole identity key for a gig — never null, no
-   *  generated fallback. A re-scrape with the same id is always treated as
-   *  an update to that exact gig, however much else about it has changed. */
-  id: string;
-  date: string; // e.g. "14 August 2026"
-  dayOfWeek: string; // e.g. "Friday"
-  time: string; // e.g. "6:00pm"
-  venue: string; // e.g. "Heaps Normal Health Club"
-  venueUrl: string | null;
-  mainAct: string | null;
-  eventTitle: string | null;
-  supportingActs: string[];
-  lineup: string[];
-  moreInfoUrl: string | null;
-  isFree: boolean;
-}
 
 // Combines "14 August 2026" + "6:00pm" into a MySQL DATETIME string
 // "2026-08-14 18:00:00".
@@ -122,14 +105,18 @@ export async function saveGigs(gigs: Gig[]): Promise<void> {
           `INSERT INTO gig_acts (gig_id, act_name, role, position) VALUES ?`,
           [actRows],
         );
+        console.log("INSERTED ");
+        console.log(g);
       }
     }
 
     await conn.commit();
+    console.log("COMMITTED");
   } catch (err) {
     await conn.rollback();
     throw err;
   } finally {
+    console.log("RELEASE");
     conn.release();
   }
 }
@@ -222,6 +209,13 @@ export async function getGigsByAct(actName: string): Promise<Gig[]> {
     [actName],
   );
   return hydrateGigs(rows);
+}
+
+// Call this once your script is done issuing queries (e.g. at the end of a
+// one-off scraper run). Without it, the pool's open/idle connections keep
+// Node's event loop alive and the process will hang instead of exiting.
+export async function closePool(): Promise<void> {
+  await pool.end();
 }
 
 // Example usage:
