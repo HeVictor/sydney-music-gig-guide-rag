@@ -10,6 +10,13 @@ export interface Gig {
   venueUrl: string | null;
   mainAct: string | null;
   eventTitle: string | null;
+  /** Raw score (0-3) from eventTitleSignalCount, kept on every gig so you can
+   *  query at whatever threshold suits you later - not just the >=2 cutoff
+   *  parseGigs already auto-resolves. 0 for ordinary confident headliners;
+   *  score is frozen from the mainAct text at parse time, so it stays
+   *  meaningful even after mainAct/eventTitle are later changed by an
+   *  override (e.g. still 1 for a low-signal title an override resolved). */
+  eventTitleSignalScore: number;
   supportingActs: string[];
   lineup: string[];
   moreInfoUrl: string | null;

@@ -28,6 +28,29 @@ export interface GigOverrideRule {
 }
 
 /**
+ * Counts how many independent "this looks like a show/event title, not an
+ * artist name" signals are present:
+ *  - a colon/en-dash/em-dash separator in the text
+ *  - a title keyword (festival, series, takeover, launch, ...)
+ *  - a large supporting-act count (5+)
+ *
+ * Exported on its own so callers can set their own threshold, inspect which
+ * signals fired, or build additional derived fields - looksLikeEventTitle and
+ * the possibleEventTitle field on Gig are both just thresholds over this.
+ */
+export function eventTitleSignalCount(
+  mainAct: string,
+  supportingActs: string[],
+): number {
+  const titleKeywords =
+    /\b(festival|fest|series|takeover|launch|showcase|farewell|vol\.?\s?\d|week\s+(one|two|three|four|\d)|ep\.?\s?\d|presents?|night|edition)\b/i;
+  const hasSeparator = /[:–—]/.test(mainAct); // colon, en dash, em dash
+  const hasKeyword = titleKeywords.test(mainAct);
+  const largeLineup = supportingActs.length >= 5;
+  return [hasSeparator, hasKeyword, largeLineup].filter(Boolean).length;
+}
+
+/**
  * Heuristic-only signal for whether a headliner string looks like a show/event
  * title rather than an artist name. This is NOT reliable on its own - the
  * source HTML gives no explicit marker either way, so it's not part of the
@@ -35,25 +58,15 @@ export interface GigOverrideRule {
  * override rule (see knownSeriesOverrides below), not as ground truth. Known
  * false positive: names containing "w/" as a genuine collaboration credit
  * (e.g. "Dee Dee Bridgewater w/ Helen Sung").
+ *
+ * Requires 2+ signals from eventTitleSignalCount - see the eventTitleSignalScore
+ * field on Gig if you want the raw count for a looser or custom threshold.
  */
 export function looksLikeEventTitle(
   mainAct: string,
   supportingActs: string[],
 ): boolean {
-  const titleKeywords =
-    /\b(festival|fest|series|takeover|launch|showcase|vol\.?\s?\d|week\s+(one|two|three|four|\d)|ep\.?\s?\d|presents?|night|edition)\b/i;
-  const hasSeparator = /[:–—]/.test(mainAct); // colon, en dash, em dash
-  const hasKeyword = titleKeywords.test(mainAct);
-  const largeLineup = supportingActs.length >= 5;
-
-  // Require at least two independent signals to reduce false positives like
-  // "Dee Dee Bridgewater w/ Helen Sung" (matches nothing here) or a two-word
-  // band name that happens to contain a dash.
-  const signals = [hasSeparator, hasKeyword, largeLineup].filter(
-    Boolean,
-  ).length;
-
-  return signals >= 2;
+  return eventTitleSignalCount(mainAct, supportingActs) >= 2;
 }
 
 /**
@@ -72,9 +85,11 @@ export function looksLikeEventTitle(
  * .headliner text is checked against looksLikeEventTitle automatically: when
  * it fires, mainAct is set to null, the original text moves to eventTitle,
  * and every performer (originally under "supports") lives in supportingActs
- * and lineup with equal billing. This is heuristic, not certain - manually
- * spot-check gigs with mainAct === null, and add override rules below for
- * anything misclassified either way.
+ * and lineup with equal billing. eventTitleSignalScore on every gig records
+ * the raw 0-3 signal count so you can query other thresholds later. This is
+ * heuristic, not certain - manually spot-check gigs with mainAct === null or
+ * a nonzero eventTitleSignalScore, and add override rules below for anything
+ * misclassified either way.
  *
  * @param response Axios response from Sydney Music Net gigs page
  * @param overrides optional manual correction rules, applied in order after
@@ -145,16 +160,19 @@ export function parseGigs(
 
       if (!mainActOrEventTitle || !venue) return; // skip anything malformed
 
-      // Auto-detect themed nights/shows via heuristic: when it fires, there's
-      // no real headliner, so null out mainAct and keep every act in
+      // Auto-detect themed nights/shows via heuristic: when 2+ signals fire,
+      // there's no real headliner, so null out mainAct and keep every act in
       // supportingActs/lineup, with the original text preserved as eventTitle.
-      // This is a heuristic, not certain - manually inspect any gig with
-      // mainAct === null later to confirm it was classified correctly, and
-      // add an override rule below for anything it gets wrong either way.
-      const isEventTitle = looksLikeEventTitle(
+      // The raw score is kept on every gig (even at 0 or 1) so you can query
+      // other thresholds later without re-parsing. This is a heuristic, not
+      // certain - manually inspect any gig with mainAct === null or a nonzero
+      // eventTitleSignalScore, and add an override rule below for anything
+      // misclassified either way.
+      const signalCount = eventTitleSignalCount(
         mainActOrEventTitle,
         supportingActs,
       );
+      const isEventTitle = signalCount >= 2;
 
       let gig: Gig = {
         id,
@@ -165,6 +183,7 @@ export function parseGigs(
         venueUrl,
         mainAct: isEventTitle ? null : mainActOrEventTitle,
         eventTitle: isEventTitle ? mainActOrEventTitle : null,
+        eventTitleSignalScore: signalCount,
         supportingActs,
         lineup: isEventTitle
           ? [...supportingActs]

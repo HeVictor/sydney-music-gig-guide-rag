@@ -67,16 +67,17 @@ export async function saveGigs(gigs: Gig[]): Promise<void> {
       // update colliding with a *different* gig's row.
       await conn.query(
         `INSERT INTO gigs
-           (id, gig_datetime, venue, venue_url, main_act, event_title, more_info_url, is_free)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           (id, gig_datetime, venue, venue_url, main_act, event_title, event_title_signal_score, more_info_url, is_free)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
-           gig_datetime  = VALUES(gig_datetime),
-           venue         = VALUES(venue),
-           venue_url     = VALUES(venue_url),
-           main_act      = VALUES(main_act),
-           event_title   = VALUES(event_title),
-           more_info_url = VALUES(more_info_url),
-           is_free       = VALUES(is_free)`,
+           gig_datetime             = VALUES(gig_datetime),
+           venue                    = VALUES(venue),
+           venue_url                = VALUES(venue_url),
+           main_act                 = VALUES(main_act),
+           event_title              = VALUES(event_title),
+           event_title_signal_score = VALUES(event_title_signal_score),
+           more_info_url            = VALUES(more_info_url),
+           is_free                  = VALUES(is_free)`,
         [
           id,
           gigDatetime,
@@ -84,6 +85,7 @@ export async function saveGigs(gigs: Gig[]): Promise<void> {
           g.venueUrl,
           g.mainAct,
           g.eventTitle,
+          g.eventTitleSignalScore,
           g.moreInfoUrl,
           g.isFree,
         ],
@@ -105,18 +107,14 @@ export async function saveGigs(gigs: Gig[]): Promise<void> {
           `INSERT INTO gig_acts (gig_id, act_name, role, position) VALUES ?`,
           [actRows],
         );
-        console.log("INSERTED ");
-        console.log(g);
       }
     }
 
     await conn.commit();
-    console.log("COMMITTED");
   } catch (err) {
     await conn.rollback();
     throw err;
   } finally {
-    console.log("RELEASE");
     conn.release();
   }
 }
@@ -163,6 +161,7 @@ async function hydrateGigs(gigRows: mysql.RowDataPacket[]): Promise<Gig[]> {
       venueUrl: r.venue_url,
       mainAct: r.main_act,
       eventTitle: r.event_title,
+      eventTitleSignalScore: r.event_title_signal_score,
       supportingActs: acts
         .filter((a) => a.role === "support")
         .map((a) => a.act_name),
