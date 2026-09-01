@@ -33,6 +33,7 @@
     "langsmith": "^0.8.3",
     "lucide-react": "^0.514.0",
     "marked": "^17.0.1",
+    "mysql2": "^3.23.3",
     "next": "15.1.6",
     "node-fetch": "^3.3.2",
     "openai": "5.15.0",
@@ -58,6 +59,7 @@
     "tailwindcss": "^4.1.10",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.12",
     "typescript": "^5.8.3"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"

@@ -1,0 +1,42 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gigs-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword # change for anything beyond local dev
+      MYSQL_DATABASE: gigs
+      MYSQL_USER: gigs_app
+      MYSQL_PASSWORD: gigs_app_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-uroot",
+          "-prootpassword",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  flyway:
+    image: flyway/flyway:10
+    container_name: gigs-flyway
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: -configFiles=/flyway/conf/flyway.conf migrate
+    volumes:
+      - ./db/migrations:/flyway/sql
+      - ./flyway.conf:/flyway/conf/flyway.conf
+
+volumes:
+  mysql_data:
