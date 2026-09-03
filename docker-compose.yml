@@ -27,16 +27,5 @@ services:
       timeout: 5s
       retries: 10
 
-  flyway:
-    image: flyway/flyway:10
-    container_name: gigs-flyway
-    depends_on:
-      mysql:
-        condition: service_healthy
-    command: -configFiles=/flyway/conf/flyway.conf migrate
-    volumes:
-      - ./db/migrations:/flyway/sql
-      - ./flyway.conf:/flyway/conf/flyway.conf
-
 volumes:
   mysql_data:
