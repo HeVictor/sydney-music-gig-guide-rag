@@ -9,7 +9,7 @@ datasource db {
 
 model Gig {
   id                     String   @id @db.Char(36) // always populated from the scraped source, never generated
-  gigDatetime            DateTime @map("gig_datetime") // combined date + time, e.g. 2026-08-14 18:00:00
+  gigDatetime            DateTime @map("gig_datetime") @db.Timestamp(0) // stored as UTC; represents the real point in time of a Sydney-local gig
   venue                  String   @db.VarChar(255)
   venueUrl               String?  @map("venue_url") @db.VarChar(1024)
   mainAct                String?  @map("main_act") @db.VarChar(255) // denormalized copy of the headliner; source of truth is GigAct

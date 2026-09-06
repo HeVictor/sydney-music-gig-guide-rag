@@ -5,27 +5,63 @@ import {
   type Gig as PrismaGig,
   type GigAct,
 } from "@prisma/client";
+import { fromZonedTime } from "date-fns-tz";
 
-// Combines "14 August 2026" + "6:00pm" into a JS Date. Prisma's DateTime
-// fields take a Date directly, so unlike the old mysql2 version there's no
-// need to format it into a MySQL-specific string.
+const SYDNEY_TZ = "Australia/Sydney";
+
+const MONTH_NAMES = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
+
+// Combines "14 August 2026" + "6:00pm" into the true UTC instant of that
+// moment in Sydney. Two things matter here:
+//  1. The date/time strings are parsed explicitly (not via `new Date(...)`,
+//     whose handling of non-ISO strings like "14 August 2026" is
+//     implementation-defined and can vary by host timezone).
+//  2. The resulting wall-clock time is interpreted as Australia/Sydney via
+//     date-fns-tz's `fromZonedTime`, which correctly accounts for AEST/AEDT
+//     daylight saving rather than assuming a fixed UTC+10/+11 offset.
 function parseGigDateTime(dateStr: string, timeStr: string): Date {
-  const datePart = new Date(dateStr);
-  if (Number.isNaN(datePart.getTime())) {
+  const dateMatch = dateStr.trim().match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (!dateMatch) {
     throw new Error(`Could not parse date: "${dateStr}"`);
   }
+  const [, dayStr, monthName, yearStr] = dateMatch;
+  const monthIndex = MONTH_NAMES.indexOf(monthName.toLowerCase());
+  if (monthIndex === -1) {
+    throw new Error(`Unrecognised month in date: "${dateStr}"`);
+  }
 
-  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/i);
-  if (!match) {
+  const timeMatch = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+  if (!timeMatch) {
     throw new Error(`Could not parse time: "${timeStr}"`);
   }
-  const [, hourStr, minuteStr, meridiem] = match;
+  const [, hourStr, minuteStr, meridiem] = timeMatch;
   let hour = parseInt(hourStr, 10) % 12;
   if (meridiem.toLowerCase() === "pm") hour += 12;
-  const minute = parseInt(minuteStr, 10);
 
-  datePart.setHours(hour, minute, 0, 0);
-  return datePart;
+  const year = yearStr;
+  const month = String(monthIndex + 1).padStart(2, "0");
+  const day = dayStr.padStart(2, "0");
+  const hh = String(hour).padStart(2, "0");
+  const mm = minuteStr;
+
+  // A naive wall-clock string with no timezone info — exactly what the
+  // scraped text says, e.g. "2026-08-14T18:00:00". Not yet a real instant.
+  const naiveLocal = `${year}-${month}-${day}T${hh}:${mm}:00`;
+
+  return fromZonedTime(naiveLocal, SYDNEY_TZ);
 }
 
 const prisma = new PrismaClient();
@@ -92,7 +128,10 @@ export async function saveGigs(gigs: Gig[]): Promise<void> {
 type GigWithActs = PrismaGig & { acts: GigAct[] };
 
 /** Reconstructs a full Gig object (including derived date/dayOfWeek/time,
- *  and lineup/supportingActs from the acts relation) from a Prisma row. */
+ *  and lineup/supportingActs from the acts relation) from a Prisma row.
+ *  gigDatetime is stored as a UTC instant, so every derived field here is
+ *  explicitly formatted in Australia/Sydney — never the server's own
+ *  timezone, which could differ (e.g. a UTC-default Docker container). */
 function hydrateGig(row: GigWithActs): Gig {
   const dt = row.gigDatetime;
 
@@ -102,13 +141,18 @@ function hydrateGig(row: GigWithActs): Gig {
       day: "numeric",
       month: "long",
       year: "numeric",
+      timeZone: SYDNEY_TZ,
     }),
-    dayOfWeek: dt.toLocaleDateString("en-AU", { weekday: "long" }),
+    dayOfWeek: dt.toLocaleDateString("en-AU", {
+      weekday: "long",
+      timeZone: SYDNEY_TZ,
+    }),
     time: dt
       .toLocaleTimeString("en-AU", {
         hour: "numeric",
         minute: "2-digit",
         hour12: true,
+        timeZone: SYDNEY_TZ,
       })
       .toLowerCase()
       .replace(" ", ""),
@@ -158,6 +202,16 @@ export async function getGigsBefore(before: Date): Promise<Gig[]> {
 export async function getGigsByAct(actName: string): Promise<Gig[]> {
   const rows = await prisma.gig.findMany({
     where: { acts: { some: { actName } } },
+    orderBy: { gigDatetime: "asc" },
+    include: { acts: { orderBy: { position: "asc" } } },
+  });
+  return rows.map(hydrateGig);
+}
+
+/** Every gig featuring at least one act whose name is in the given array. */
+export async function getGigsByAnyAct(actNames: string[]): Promise<Gig[]> {
+  const rows = await prisma.gig.findMany({
+    where: { acts: { some: { actName: { in: actNames } } } },
     orderBy: { gigDatetime: "asc" },
     include: { acts: { orderBy: { position: "asc" } } },
   });
