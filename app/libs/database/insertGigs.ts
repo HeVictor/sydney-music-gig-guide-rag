@@ -4,6 +4,7 @@ import {
   ActRole,
   type Gig as PrismaGig,
   type GigAct,
+  Prisma,
 } from "@prisma/client";
 import { fromZonedTime } from "date-fns-tz";
 
@@ -214,6 +215,19 @@ export async function getGigsByAnyAct(actNames: string[]): Promise<Gig[]> {
     where: { acts: { some: { actName: { in: actNames } } } },
     orderBy: { gigDatetime: "asc" },
     include: { acts: { orderBy: { position: "asc" } } },
+  });
+  return rows.map(hydrateGig);
+}
+
+export async function getGigsBySuppliedWhereClause(
+  whereClause: Prisma.GigWhereInput,
+  limit: number,
+): Promise<Gig[]> {
+  const rows = await prisma.gig.findMany({
+    where: whereClause,
+    orderBy: { gigDatetime: "asc" },
+    include: { acts: { orderBy: { position: "asc" } } },
+    take: limit,
   });
   return rows.map(hydrateGig);
 }
