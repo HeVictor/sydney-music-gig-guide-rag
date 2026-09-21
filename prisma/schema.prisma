@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Gig {
+  id                     String   @id @db.Char(36) // always populated from the scraped source, never generated
+  gigDatetime            DateTime @map("gig_datetime") @db.Timestamp(0) // stored as UTC; represents the real point in time of a Sydney-local gig
+  venue                  String   @db.VarChar(255)
+  venueUrl               String?  @map("venue_url") @db.VarChar(1024)
+  mainAct                String?  @map("main_act") @db.VarChar(255) // denormalized copy of the headliner; source of truth is GigAct
+  eventTitle             String?  @map("event_title") @db.VarChar(255)
+  eventTitleSignalScore  Int      @default(0) @map("event_title_signal_score")
+  moreInfoUrl            String?  @map("more_info_url") @db.VarChar(1024)
+  isFree                 Boolean  @default(false) @map("is_free")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  acts GigAct[]
+
+  @@index([gigDatetime])
+  @@index([venue])
+  @@map("gigs")
+}
+
+enum ActRole {
+  main
+  support
+}
+
+model GigAct {
+  id       BigInt  @id @default(autoincrement())
+  gigId    String  @map("gig_id") @db.Char(36)
+  actName  String  @map("act_name") @db.VarChar(255)
+  role     ActRole // 'main' only when the gig has a single headliner (mainAct set, eventTitle null)
+  position Int     @db.SmallInt // preserves original lineup order
+
+  gig Gig @relation(fields: [gigId], references: [id], onDelete: Cascade)
+
+  @@unique([gigId, actName]) // prevents dupes when re-inserting on a re-scrape
+  @@index([actName])
+  @@map("gig_acts")
+}
