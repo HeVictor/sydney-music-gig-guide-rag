@@ -16,7 +16,7 @@ I will be building this RAG application from scratch using this repository.
 
 For fetching information about Australian music acts, I will be focusing on sites and platforms that have a focus on covering or hosting Australian artists that are not big mainstream acts. I will start with two soruces:
 
-- **_Bandcamp_**: a popular music hosting platform for smaller indie artists. This site will contain music releases for the artist. Their _robots.txt_ file allow scraping of their tag and artists pages which allow me to filter and get more info for Australian acts.
+- **_MusicBrainz_**: a community-maintained and open source encyclopedia for information about artists. This source will be useful for getting music release information from bands, and as it is community maintained it is more likely to cover smaller indie bands as well who do not have distribution deals to get them onto bigger platforms. They expose a public API that allows you to query their data directly so we do not need to implement scraping.
 - **_Triple J Unearthed_**: this is explicitly made to promote emerging Australian acts. This site will contain general information for artists from interviews and articles. They are hosted under the `abc.net.au/triplejunearthed` and the _robots.txt_ file from the root domain of `abc.net.au` has no restrictions against scraping the `/triplejunearthed` subdomain.
 
 For fetching gig data for Sydney, I will be scraping them from `https://sydneymusic.net/gig-guide` as it is a highly-curated, comprehensive, and up-to-date site containing a wide range of live music gig happening across Sydney that is maintained by a passionate community. Their _robots.txt_ file permit scraping across all their pages.
@@ -28,7 +28,7 @@ I am choosing React and TypeScript as the stack choice of my implementation. I w
 Additional considerations:
 
 - A possible additional feature is to hook up the app with Spotify API to have it analyse my music tastes recently and have it recommend local artists and Sydney gigs based on the genres and bands I listen to.
-- Music releases are highly structured data so info fetched from Bandcamp may be more suitable for being stored in a different table in MySQL.
+- Music releases are highly structured data so info fetched from MusicBrainz may be more suitable for being stored in a different table in MySQL.
 
 ## Chunking strategy
 
@@ -39,7 +39,7 @@ The chunking will only apply to the general band information fetched from the ar
 
 ## Architecture
 
-At a high level, scraped information from Bandcamp and `sydneymusic.net` will go into separate tables in MySQL, while scraped information from Triple J Unearthed will be embedded into vectors using an LLM model to be inserted into a Pinecone database.
+At a high level, scraped information from MusicBrainz and `sydneymusic.net` will go into separate tables in MySQL, while scraped information from Triple J Unearthed will be embedded into vectors using an LLM model to be inserted into a Pinecone database.
 
 As a foundation, I will have two functional agents and a routing agent for my application:
 

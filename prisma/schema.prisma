@@ -45,3 +45,61 @@ model GigAct {
   @@index([actName])
   @@map("gig_acts")
 }
+
+enum ArtistMatchStatus {
+  matched // confidently resolved to a MusicBrainz artist
+  unmatched // searched, but no confident MusicBrainz match found
+  pending // not yet searched
+}
+
+/** Maps a cleaned act name (as it appears, post-cleanup, in gig_acts) to a
+ *  resolved MusicBrainz artist — the practical stand-in for a direct
+ *  act_name -> artist foreign key, since act_name is free scraped text and
+ *  MusicBrainz matching is inherently fuzzy rather than an exact lookup.
+ *  One row per distinct cleaned act name across all gigs. */
+model ActArtistLink {
+  cleanedActName  String            @id @map("cleaned_act_name") @db.VarChar(255)
+  artistId        String?           @map("artist_id") @db.Char(36)
+  status          ArtistMatchStatus @default(pending)
+  matchScore      Int?              @map("match_score") // MusicBrainz search relevance score (0-100) for the match, if any
+  countryHint     String?           @map("country_hint") @db.VarChar(100) // raw text extracted from a scraped mainAct qualifier, e.g. "USA"
+  countryHintCode String?           @map("country_hint_code") @db.VarChar(2) // ISO 3166-1 alpha-2 resolved from countryHint, e.g. "US" — used to disambiguate same-named artists on MusicBrainz
+  lastCheckedAt   DateTime?         @map("last_checked_at")
+
+  artist MusicArtist? @relation(fields: [artistId], references: [id], onDelete: SetNull)
+
+  @@index([artistId])
+  @@map("act_artist_links")
+}
+
+model MusicArtist {
+  id             String   @id @db.Char(36) // MusicBrainz artist MBID
+  name           String   @db.VarChar(255) // MusicBrainz's canonical artist name
+  country        String?  @db.VarChar(2) // ISO 3166-1 alpha-2, e.g. "AU"
+  disambiguation String?  @db.VarChar(255) // MusicBrainz's own disambiguation comment, when present
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  releases    MusicRelease[]
+  actLinks    ActArtistLink[]
+
+  @@index([name])
+  @@map("music_artists")
+}
+
+/** Modeled on MusicBrainz release-groups (the conceptual album/EP/single),
+ *  not raw releases — a release-group is one row per "Currents by Tame
+ *  Impala", not one row per regional/format edition of it. */
+model MusicRelease {
+  id               String   @id @db.Char(36) // MusicBrainz release-group MBID
+  artistId         String   @map("artist_id") @db.Char(36)
+  title            String   @db.VarChar(255)
+  primaryType      String?  @map("primary_type") @db.VarChar(50) // "Album", "EP", "Single", etc.
+  firstReleaseDate String?  @map("first_release_date") @db.VarChar(10) // kept as text: MusicBrainz dates can be partial (YYYY, YYYY-MM, or YYYY-MM-DD)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  artist MusicArtist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@index([artistId])
+  @@map("music_releases")
+}
