@@ -1,5 +1,5 @@
 import { closePool, saveGigs } from "./libs/database/insertGigs";
-import { scrapeSydneyMusicNetGigGuidePage } from "./libs/scrapers/sydneyMusicNetScraper";
+import { scrapeSydneyMusicNetGigGuidePage } from "./libs/retrievers/sydneyMusicNetScraper";
 
 async function scrapeGigInfoAndPopulateDb() {
   const scrapedGigs = await scrapeSydneyMusicNetGigGuidePage();
