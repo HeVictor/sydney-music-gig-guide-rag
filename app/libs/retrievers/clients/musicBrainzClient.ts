@@ -4,9 +4,8 @@
 //   - No more than ~1 request/second per IP (see musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting).
 //   - A meaningful User-Agent identifying the app and a contact point, so
 //     they can reach out if something misbehaves — an "anonymous" UA gets
-//     throttled harder.
-const USER_AGENT =
-  "SydneyMusicGigGuideRAG/1.0 (https://github.com/HeVictor/sydney-music-gig-guide-rag)";
+//     throttled harder. The UA lives in httpUtils.ts (edit it there).
+import { USER_AGENT } from "../utils/httpUtils";
 
 const API_ROOT = "https://musicbrainz.org/ws/2";
 const MIN_REQUEST_INTERVAL_MS = 1100; // slightly over 1s, to stay safely under the limit
@@ -142,4 +141,60 @@ export async function getReleaseGroupsForArtist(
   }
 
   return releaseGroups;
+}
+
+export interface MusicBrainzArtistLinks {
+  wikidataId: string | null; // e.g. "Q12345"
+  wikipediaTitle: string | null; // English Wikipedia title, only when MusicBrainz has a direct (older-style) Wikipedia link
+  officialWebsite: string | null;
+}
+
+/** Looks up an artist's external links (url relationships) by MBID. Most
+ *  artists with a Wikipedia page are linked via Wikidata rather than a
+ *  direct Wikipedia link, so wikidataId is the primary path; wikipediaTitle
+ *  is a fallback for older entries that still carry a direct link. */
+export async function getArtistExternalLinks(
+  artistMbid: string,
+): Promise<MusicBrainzArtistLinks> {
+  const url = `${API_ROOT}/artist/${artistMbid}?inc=url-rels&fmt=json`;
+
+  const response = await rateLimitedFetch(url);
+  if (!response.ok) {
+    throw new Error(
+      `MusicBrainz artist link lookup failed (${response.status}): ${artistMbid}`,
+    );
+  }
+
+  const data = (await response.json()) as {
+    relations?: Array<{ type: string; url?: { resource: string } }>;
+  };
+
+  let wikidataId: string | null = null;
+  let wikipediaTitle: string | null = null;
+  let officialWebsite: string | null = null;
+
+  for (const relation of data.relations ?? []) {
+    const resource = relation.url?.resource;
+    if (!resource) continue;
+
+    if (relation.type === "wikidata") {
+      const match = resource.match(/\/(Q\d+)\/?$/);
+      if (match) wikidataId = match[1];
+    } else if (relation.type === "wikipedia") {
+      const match = resource.match(
+        /^https?:\/\/en\.wikipedia\.org\/wiki\/(.+)$/,
+      );
+      if (match) {
+        try {
+          wikipediaTitle = decodeURIComponent(match[1]).replace(/_/g, " ");
+        } catch {
+          // Malformed percent-encoding in the stored link — skip it rather than fail the whole lookup.
+        }
+      }
+    } else if (relation.type === "official homepage" && !officialWebsite) {
+      officialWebsite = resource;
+    }
+  }
+
+  return { wikidataId, wikipediaTitle, officialWebsite };
 }

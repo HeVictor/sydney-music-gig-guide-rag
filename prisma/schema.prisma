@@ -77,14 +77,74 @@ model MusicArtist {
   name           String   @db.VarChar(255) // MusicBrainz's canonical artist name
   country        String?  @db.VarChar(2) // ISO 3166-1 alpha-2, e.g. "AU"
   disambiguation String?  @db.VarChar(255) // MusicBrainz's own disambiguation comment, when present
+  wikidataId      String?  @map("wikidata_id") @db.VarChar(20) // from MusicBrainz url-rels, e.g. "Q12345"
+  officialWebsite String?  @map("official_website") @db.VarChar(1024) // from MusicBrainz url-rels
+  lastFmUrl       String?  @map("last_fm_url") @db.VarChar(1024) // set when Last.fm knows this artist; also drives the Last.fm credit line
+  lastEnrichedAt  DateTime? @map("last_enriched_at") // when enrichArtists last ran cleanly for this artist
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  releases    MusicRelease[]
-  actLinks    ActArtistLink[]
+  releases       MusicRelease[]
+  actLinks       ActArtistLink[]
+  documents      ArtistDocument[]
+  tags           ArtistTag[]
+  similarArtists SimilarArtist[]
 
   @@index([name])
   @@map("music_artists")
+}
+
+enum ArtistDataSource {
+  wikipedia
+  lastfm
+  wikidata // tags only (genre statements) — documents come from wikipedia and lastfm
+}
+
+/** Free-text "about this act" content, one row per (artist, source), with
+ *  everything needed to credit it properly at display time. Text is stored
+ *  as fetched so it can be embedded later; contentHash lets a re-run detect
+ *  whether the text changed and needs re-embedding. */
+model ArtistDocument {
+  id           Int              @id @default(autoincrement())
+  artistId     String           @map("artist_id") @db.Char(36)
+  source       ArtistDataSource
+  title        String           @db.VarChar(255)
+  text         String           @db.LongText
+  sourceUrl    String           @map("source_url") @db.VarChar(1024) // page the text came from
+  permalinkUrl String?          @map("permalink_url") @db.VarChar(1024) // exact revision, where the source offers one (Wikipedia)
+  license      String           @db.VarChar(100) // e.g. "CC BY-SA 4.0"
+  attribution  String           @db.VarChar(500) // ready-to-display credit line
+  contentHash  String           @map("content_hash") @db.Char(64) // sha256 of text
+  fetchedAt    DateTime         @map("fetched_at")
+
+  artist MusicArtist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([artistId, source])
+  @@map("artist_documents")
+}
+
+model ArtistTag {
+  artistId String           @map("artist_id") @db.Char(36)
+  source   ArtistDataSource
+  name     String           @db.VarChar(100)
+
+  artist MusicArtist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@id([artistId, source, name])
+  @@map("artist_tags")
+}
+
+model SimilarArtist {
+  artistId    String           @map("artist_id") @db.Char(36)
+  source      ArtistDataSource
+  similarName String           @map("similar_name") @db.VarChar(255)
+  similarMbid String?          @map("similar_mbid") @db.Char(36)
+  matchScore  Float            @map("match_score") // 0 to 1
+
+  artist MusicArtist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@id([artistId, source, similarName])
+  @@map("similar_artists")
 }
 
 /** Modeled on MusicBrainz release-groups (the conceptual album/EP/single),

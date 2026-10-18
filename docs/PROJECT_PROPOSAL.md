@@ -14,10 +14,10 @@ I will be building this RAG application from scratch using this repository.
 
 ## Data source
 
-For fetching information about Australian music acts, I will be focusing on sites and platforms that have a focus on covering or hosting Australian artists that are not big mainstream acts. I will start with two soruces:
+For fetching information about music acts, I will start with two soruces:
 
 - **_MusicBrainz_**: a community-maintained and open source encyclopedia for information about artists. This source will be useful for getting music release information from bands, and as it is community maintained it is more likely to cover smaller indie bands as well who do not have distribution deals to get them onto bigger platforms. They expose a public API that allows you to query their data directly so we do not need to implement scraping.
-- **_Triple J Unearthed_**: this is explicitly made to promote emerging Australian acts. This site will contain general information for artists from interviews and articles. They are hosted under the `abc.net.au/triplejunearthed` and the _robots.txt_ file from the root domain of `abc.net.au` has no restrictions against scraping the `/triplejunearthed` subdomain.
+- **_Wikipedia and Wikidata_**: Wikipedia and Wikidata both have licensing that allows usage of their content for the purpose of this RAG application, and MusicBrainz profiles for an artist will have links to both if they exist for a band. For bands that do have content on here, this will be useful for providing general information and genre tags for music acts.
 
 For fetching gig data for Sydney, I will be scraping them from `https://sydneymusic.net/gig-guide` as it is a highly-curated, comprehensive, and up-to-date site containing a wide range of live music gig happening across Sydney that is maintained by a passionate community. Their _robots.txt_ file permit scraping across all their pages.
 
@@ -36,6 +36,7 @@ The chunking will only apply to the general band information fetched from the ar
 
 - For chunking article content, I will utilise the "chunking with overlap" strategy by splitting texts by sentences and iteratively adding sentences to the current chunk until the set chunk size, by which then the last portion of the previous chunks will be used as the start of the next chunks.
 - For chunking interview content, I will chunk it so that a question and answer combination are kept in the same chunk, and if responses are longer than the chunk size then I will use the overlap strategy while still retaining the original question in the new chunk.
+- It may be required that for interviews and articles for a specific band that I annotate each chunk with the band's name so that this RAG can more accurately retrieve information for them if a query mentions them by name.
 
 ## Architecture
 
