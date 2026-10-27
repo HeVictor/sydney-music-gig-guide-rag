@@ -19,9 +19,11 @@ export const pineconeClient = new Pinecone({
 export const searchDocuments = async (
   query: string,
   topK: number = 3,
+  options: { namespace?: string; filter?: Record<string, unknown> } = {},
 ): Promise<ScoredPineconeRecord<RecordMetadata>[]> => {
   // Connect to the index
-  const index = pineconeClient.Index(process.env.PINECONE_INDEX!);
+  const base = pineconeClient.index({ name: process.env.PINECONE_INDEX! });
+  const index = options.namespace ? base.namespace(options.namespace) : base;
 
   // Convert the search query into a vector embedding
   const queryEmbedding = await openaiClient.embeddings.create({
