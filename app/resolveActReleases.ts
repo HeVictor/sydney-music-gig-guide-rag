@@ -2,7 +2,7 @@ import { PrismaClient, ArtistMatchStatus } from "@prisma/client";
 import {
   searchArtistByNameAndCountry,
   getReleaseGroupsForArtist,
-} from "./libs/retrievers/musicBrainzClient";
+} from "./libs/retrievers/clients/musicBrainzClient";
 
 const prisma = new PrismaClient();
 
