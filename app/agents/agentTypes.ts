@@ -1,5 +1,5 @@
 export type AgentAction = {
-  action: "databaseSearch" | "none";
+  action: "generalArtistInfoQuery" | "databaseSearch" | "none";
   originalQuery: string;
   agentQuery: string;
 };

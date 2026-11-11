@@ -2,10 +2,12 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { add } from "date-fns";
-import { AgentAction } from "./agentTypes";
 import { openaiClient } from "../libs/openai";
 import { Gig } from "../types/gigTypes";
 import { getGigsBySuppliedWhereClause } from "../libs/database/insertGigs";
+import { AgentRequest, AgentResponse } from "./types";
+import { streamText } from "ai";
+import { openai } from "@ai-sdk/openai";
 
 const futureBoundSchema = z.object({
   amount: z.number(),
@@ -284,7 +286,7 @@ function formatGig(gig: Gig): string | null {
 }
 
 /** Formats an array of Gig objects into a single string ready to drop
- *  straight into a bullet list (e.g. a Markdown-rendered message), one
+ *  straight into a bullet list, one
  *  top-level bullet per gig with its details as nested bullets underneath.
  *  Gigs with an unexpected eventTitle/mainAct combination are skipped
  *  (and logged as errors via formatActs) rather than shown malformed. */
@@ -295,11 +297,15 @@ function formatGigsAsBulletList(gigs: Gig[]): string {
     .join("\n");
 }
 
-export const databaseSearchAgent = async (agentAction: AgentAction) => {
+const databaseQueryAgent = async (
+  agentRequest: AgentRequest,
+): Promise<string> => {
   const prompt = `
 You specialise in extracting search parameters for looking up gigs in Sydney from the user query according to the structure output.
 
 Unless the user specifically mentions a timezone or location in their query, ALWAYS assume that dates and times mentioned in their queries to be in the Sydney timezone.
+
+Always assume that the user is asking about gigs that are happening in the future (the "gigDateTimeFrom" should be the current date and time), unless the user expliclty asks about gigs in a past date.
 
 For extracting the "gigDateTimeFrom" and "gigDateTimeTo" range from the query, output ISO 8601 datetime strings in UTC (ending in "Z"), correctly converted from the Sydney/AEST or AEDT time the user means — remember Sydney observes daylight saving, so the UTC offset is +10:00 in AEST (winter) and +11:00 in AEDT (summer).
 Leave either as null if the query does not specify a date or time range.
@@ -318,12 +324,14 @@ For venues, add any venue names mentioned into the output array — a query can 
         role: "system",
         content: prompt,
       },
-      { role: "user", content: agentAction.originalQuery },
+      { role: "user", content: agentRequest.originalQuery },
     ],
     response_format: zodResponseFormat(sqlSchema, "sqlSchema"),
   });
 
   const rawSqlProps = completion.choices[0].message.parsed;
+
+  console.log("sqlProps: ", rawSqlProps);
 
   if (rawSqlProps === null) {
     return `Could not parse user query to SQL props. Refusal message: ${completion.choices[0].message.refusal}`;
@@ -340,4 +348,33 @@ For venues, add any venue names mentioned into the output array — a query can 
   }
 
   return formatGigsAsBulletList(gigs);
+};
+
+export const databaseSearchAgent = async (
+  agentRequest: AgentRequest,
+): Promise<AgentResponse> => {
+  const retrievedGigsContext = await databaseQueryAgent(agentRequest);
+
+  const systemPrompt = `You are a helpful assistant that answers questions about music gigs in Sydney based on the provided context. The context can be any of the following:
+  - A bullet list of matching gigs with all of their information.
+  - A message stating that the user query could not be parsed to SQL props.
+  - A message stating no gigs could be found matching your criteria. 
+  
+  If the context states the user query could not be parsed, just respond that "An error has occurred and we cannot fetch any gigs for you at this time."
+  For all other contexts just use it to answer the user's question.
+  `;
+
+  return {
+    streamResult: streamText({
+      model: openai("gpt-4o"),
+      system: systemPrompt,
+      prompt: `Context: ${retrievedGigsContext}\n\nUser Query: ${agentRequest.originalQuery}`,
+    }),
+    sources: [
+      {
+        title: "Sydney live music information provided by Sydney Music",
+        url: "https://sydneymusic.net/",
+      },
+    ],
+  };
 };

@@ -9,6 +9,17 @@ export const pineconeClient = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY as string,
 });
 
+export const NAMESPACE = "artist-info";
+
+export const getTargetIndex = () => {
+  const indexName = process.env.PINECONE_INDEX;
+  if (!indexName) {
+    throw new Error("PINECONE_INDEX is not set in the environment.");
+  }
+
+  return pineconeClient.index({ name: indexName }).namespace(NAMESPACE);
+};
+
 /**
  * Searches for semantically similar documents in the vector database
  *
