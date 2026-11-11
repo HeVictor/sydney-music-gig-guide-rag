@@ -1,6 +1,6 @@
 import { PrismaClient, type Prisma } from "@prisma/client";
 import { openaiClient } from "./libs/openai";
-import { pineconeClient } from "./libs/pinecone";
+import { getTargetIndex } from "./libs/pinecone";
 import { chunkText, type Chunk } from "./libs/chunking";
 
 const prisma = new PrismaClient();
@@ -16,8 +16,6 @@ const CHUNK_OVERLAP = 50;
 const EMBED_BATCH_SIZE = 100;
 const UPSERT_BATCH_SIZE = 100;
 
-const NAMESPACE = "artist-info";
-
 // Chunks after the first rarely mention the artist's name ("The band formed
 // in 2010..."), so a query like "tell me about <band>" would match them
 // poorly. Prefixing the name onto the text that gets embedded (not the text
@@ -27,15 +25,6 @@ const PREFIX_ARTIST_NAME_IN_EMBEDDING = true;
 type DocumentWithArtist = Prisma.ArtistDocumentGetPayload<{
   include: { artist: { select: { id: true; name: true; country: true } } };
 }>;
-
-function getTargetIndex() {
-  const indexName = process.env.PINECONE_INDEX;
-  if (!indexName) {
-    throw new Error("PINECONE_INDEX is not set in the environment.");
-  }
-
-  return pineconeClient.index({ name: indexName }).namespace(NAMESPACE);
-}
 
 type TargetIndex = ReturnType<typeof getTargetIndex>;
 
